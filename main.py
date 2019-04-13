@@ -8,10 +8,13 @@ import argparse
 parser = argparse.ArgumentParser(description="Run an optical network simulation.")
 
 parser.add_argument("--simulation_count", type=int, default=8, help="The number of simulations to run and average.")
-parser.add_argument("--node_count", type=int, action='store', required=True, default=10, help="The number of nodes on the bus network.")
-parser.add_argument("--lambda", type=float, action='store', dest="lambda_parameter", required=True, default=5.0, help="The average arrival rate.")
-parser.add_argument("--mu", type=float, action='store', dest="mu_parameter", required=True, default=1.0, help="The average duration of each connection.")
-parser.add_argument("--wavelength_count", type=int, action='store', required=True, default=2, help="The number of different wavelengths available to the bus.")
+parser.add_argument("--node_count", type=int, action='store', required=True, help="The number of nodes on the bus network.")
+parser.add_argument("--lambda", type=float, action='store', dest="lambda_parameter", required=True, help="The average arrival rate.")
+parser.add_argument("--mu", type=float, action='store', dest="mu_parameter", required=True, help="The average duration of each connection.")
+parser.add_argument("--wavelength_count", type=int, action='store', required=True, help="The number of different wavelengths available to the bus.")
+
+parser.add_argument("--transient_count", type=int, action='store', required=True, help="How many connections to ignore at the beginning of the simulation.")
+parser.add_argument("--target_count", type=int, action='store', required=True, help="How many connections after the transient amount to collect statistics on.")
 
 parser.add_argument("--wavelength_mode", action='store', required=True, choices=["between_any", "first_and_last", "wavelength_conversion"],
 default=["between_any"], help="""The simulation mode. 
@@ -26,7 +29,13 @@ print(args)
 print("Running {} simulations on separate threads...".format(args.simulation_count))
 sims = []
 for i in range(0, args.simulation_count):
-    sim = FiberOpticSimulation(node_count=args.node_count, lambda_parameter=args.lambda_parameter, mu_parameter=args.mu_parameter, wavelength_count=args.wavelength_count)
+    sim = FiberOpticSimulation(
+        node_count=args.node_count,
+        lambda_parameter=args.lambda_parameter,
+        mu_parameter=args.mu_parameter,
+        wavelength_count=args.wavelength_count,
+        transient_count=args.transient_count,
+        target_count=args.target_count)
     sims.append(sim)
     sim.start_simulation()
 
