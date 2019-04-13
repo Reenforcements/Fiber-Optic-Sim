@@ -4,7 +4,11 @@ class Connection:
     """A single connection is made up of one or more links."""
 
 class ConnectionDirector:
-    """Handles decisions regarding how and if a connection can be routed (or if it needs to be blocked.)"""
+    """
+    Handles decisions regarding how and if a connection can be routed (or if it needs to be blocked.)
+
+    Connections are always specified from left to right. If not, they're swapped so they are.
+    """
     def __init__(self, links):
         self.links = []
 
