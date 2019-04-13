@@ -87,7 +87,7 @@ class ConnectionDirector:
                 trunks.append( Trunk(start=t, end=(t+1), wavelength=w) )
 
     def generate_connection(self):
-        if self.wavelength_mode is self.WavelengthMode_Between_Any:
+        if self.wavelength_mode == self.WavelengthMode_Between_Any:
             # Generate a random start and end node.
             start_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
             # Ensure our end node is different
@@ -98,19 +98,19 @@ class ConnectionDirector:
             connection = Connection(start_node=start_node, end_node=end_node)
             return connection
 
-        elif self.wavelength_mode is self.WavelengthMode_First_and_Last:
+        elif self.wavelength_mode == self.WavelengthMode_First_and_Last:
             start_node = 0
             end_node = self.node_count-1
             connection = Connection(start_node=start_node, end_node=end_node)
             return connection
 
-        elif self.wavelength_mode is self.WavelengthMode_Wavelength_Conversion:
+        elif self.wavelength_mode == self.WavelengthMode_Wavelength_Conversion:
             None
-
+        print(self.wavelength_mode, self.WavelengthMode_First_and_Last)
         return None
 
     def route(self, connection):
-        if self.wavelength_mode is self.WavelengthMode_Between_Any:
+        if self.wavelength_mode == self.WavelengthMode_Between_Any or self.wavelength_mode == self.WavelengthMode_First_and_Last:
             trunks = None
             # Attempt all wavelengths
             for w in range(0, self.wavelength_count):
@@ -118,7 +118,7 @@ class ConnectionDirector:
                 trunks = []
                 for i in range(connection.start_node, connection.end_node):
                     t = self.inter_node_trunks[i][w]
-                    if t.occupied is False:
+                    if t.occupied == False:
                         trunks.append(t)
                     else:
                         # This path definitely won't work.
@@ -132,9 +132,7 @@ class ConnectionDirector:
                     return True
 
             return False
-        elif self.wavelength_mode is self.WavelengthMode_First_and_Last:
-            None
-        elif self.wavelength_mode is self.WavelengthMode_Wavelength_Conversion:
+        elif self.wavelength_mode == self.WavelengthMode_Wavelength_Conversion:
             None
 
 class SimulationEvent():
@@ -208,7 +206,7 @@ class FiberOpticSimulation():
                 next_event.absolute_time,
                 "ConnectionRequested" if next_event.type == SimulationEvent.ConnectionRequested else "ConnectionFinished"))
 
-            if next_event.type is SimulationEvent.ConnectionRequested:
+            if next_event.type == SimulationEvent.ConnectionRequested:
                 # Generate the next connection requested event.
                 next_connection_requested_event = SimulationEvent(
                     type=SimulationEvent.ConnectionRequested,
@@ -240,7 +238,7 @@ class FiberOpticSimulation():
                     new_connection.blocked = True
                     self.debug_print("({}) Blocked connection.".format(next_event.absolute_time))
 
-            elif next_event.type is SimulationEvent.ConnectionFinished:
+            elif next_event.type == SimulationEvent.ConnectionFinished:
                 assert next_event.connection is not None, "Connection for ConnectionFinished event is None."
                 self.debug_print("({}) Releasing connection route: {}".format(finished_event.absolute_time, next_event.connection))
                 next_event.connection.releaseRoute()

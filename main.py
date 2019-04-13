@@ -31,6 +31,7 @@ for i in range(0, args.simulation_count):
         node_count=args.node_count,
         lambda_parameter=args.lambda_parameter,
         mu_parameter=args.mu_parameter,
+        wavelength_mode=args.wavelength_mode,
         wavelength_count=args.wavelength_count,
         transient_count=args.transient_count,
         target_count=args.target_count)
