@@ -27,6 +27,8 @@ class Connection:
         self.end_node = max(start_node, end_node)
         self.trunks = None
 
+        self.blocked = None
+
     def has_route(self):
         return self.trunks is not None
 
@@ -93,8 +95,33 @@ class ConnectionDirector:
 
         return None
 
-    def route(self):
-        None
+    def route(self, connection):
+        if self.wavelength_mode is self.WavelengthMode_Between_Any:
+            trunks = None
+            # Attempt all wavelengths
+            for w in self.wavelength_count:
+                # Try a path using wavelength w.
+                trunks = []
+                for i in range(connection.start_node, connection.end_node):
+                    t = self.inter_node_trunks[i][w]
+                    if t.occupied is False:
+                        trunks.append(t)
+                    else:
+                        # This path definitely won't work.
+                        trunks = None
+                        break
+
+                if trunks is not None:
+                    # We have a valid path through
+                    break
+
+        # Give the connection the full route
+        connection.aquireRoute(trunks)
+
+        elif self.wavelength_mode is self.WavelengthMode_First_and_Last:
+            None
+        elif self.wavelength_mode is self.WavelengthMode_Wavelength_Conversion:
+            None
 
 class SimulationEvent():
     # The two different event types.
@@ -164,16 +191,28 @@ class FiberOpticSimulation():
             next_event = self.event_queue.get()[1]
 
             if next_event.type is SimulationEvent.ConnectionRequested:
+                # Generate the next connection requested event.
+                next_connection_requested_event = SimulationEvent(
+                    type=SimulationEvent.ConnectionRequested,
+                    rate=self.lambda_parameter,
+                    simulation=self,
+                    last_event=next_event)
+
                 # Generate a connection
                 new_connection = self.connectionDirector.generate_connection()
 
                 if self.connectionDirector.route(new_connection):
                     # Successfully found a route.
-                    # Create a "finished" event.
-                    None
+                    new_connection.blocked = False
+                    # Create a "finished" event for the future.
+                    finished_event = SimulationEvent(
+                        type=SimulationEvent.ConnectionFinished,
+                        rate=self.mu_parameter,
+                        simulation=self,
+                        last_event=next_event)
                 else:
                     # Couldn't route the connection. It must be dropped.
-                    None
+                    new_connection.blocked = True
 
             elif next_event.type is SimulationEvent.ConnectionFinished:
                 None
