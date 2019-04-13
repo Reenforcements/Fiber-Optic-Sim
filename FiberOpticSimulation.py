@@ -87,7 +87,7 @@ class ConnectionDirector:
                 trunks.append( Trunk(start=t, end=(t+1), wavelength=w) )
 
     def generate_connection(self):
-        if self.wavelength_mode == self.WavelengthMode_Between_Any:
+        if self.wavelength_mode == self.WavelengthMode_Between_Any or self.wavelength_mode == self.WavelengthMode_Wavelength_Conversion:
             # Generate a random start and end node.
             start_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
             # Ensure our end node is different
@@ -104,9 +104,6 @@ class ConnectionDirector:
             connection = Connection(start_node=start_node, end_node=end_node)
             return connection
 
-        elif self.wavelength_mode == self.WavelengthMode_Wavelength_Conversion:
-            None
-        print(self.wavelength_mode, self.WavelengthMode_First_and_Last)
         return None
 
     def route(self, connection):
@@ -133,7 +130,25 @@ class ConnectionDirector:
 
             return False
         elif self.wavelength_mode == self.WavelengthMode_Wavelength_Conversion:
-            None
+            # This routing method will succeed as long as there is at least one
+            #  free trunk along the path.
+            trunks = []
+            for i in range(connection.start_node, connection.end_node):
+                # Try all available wavelength trunks between nodes i and i+1
+                for w in range(0, self.wavelength_count):
+                    t = self.inter_node_trunks[i][w]
+                    if t.occupied == False:
+                        trunks.append(t)
+                        break
+                    elif w == (self.wavelength_count-1):
+                        # There's no available wavelengths between i and i+1
+                        return False
+
+
+            # If we got this far, it means we found a path.
+            # Acquire the route.
+            connection.acquireRoute(trunks)
+            return True
 
 class SimulationEvent():
     # The two different event types.
