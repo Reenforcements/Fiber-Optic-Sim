@@ -1,9 +1,8 @@
 from FiberOpticSimulation import *
 import argparse
 
-
 # Sample command:
-# python main.py --node_count 10 --lambda 5 --mu 1 --wavelength_count 10 --wavelength_mode between_any
+# python main.py --node_count 10 --lambda 5 --mu 1 --wavelength_count 10 --wavelength_mode between_any --transient_count 100 --target_count 800
 
 parser = argparse.ArgumentParser(description="Run an optical network simulation.")
 
@@ -16,12 +15,11 @@ parser.add_argument("--wavelength_count", type=int, action='store', required=Tru
 parser.add_argument("--transient_count", type=int, action='store', required=True, help="How many connections to ignore at the beginning of the simulation.")
 parser.add_argument("--target_count", type=int, action='store', required=True, help="How many connections after the transient amount to collect statistics on.")
 
-parser.add_argument("--wavelength_mode", action='store', required=True, choices=["between_any", "first_and_last", "wavelength_conversion"],
-default=["between_any"], help="""The simulation mode. 
+parser.add_argument("--wavelength_mode", action='store', required=True, choices=[ConnectionDirector.WavelengthMode_Between_Any, ConnectionDirector.WavelengthMode_First_and_Last, ConnectionDirector.WavelengthMode_Wavelength_Conversion],
+default=[ConnectionDirector.WavelengthMode_Between_Any], help="""The simulation mode. 
 between_any means any node can be a start node and any node can be an end node. 
 first_and_last means connections can only originate from node 1 and end at node 10. 
 wavelength_conversion allows different wavelengths to be used between nodes.""")
-
 
 args = parser.parse_args()
 

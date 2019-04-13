@@ -27,6 +27,9 @@ class Connection:
         self.end_node = max(start_node, end_node)
         self.trunks = None
 
+    def has_route(self):
+        return self.trunks is not None
+
     def aquireRoute(self, trunks):
         self.trunks = trunks
         for trunk in trunks:
@@ -46,12 +49,19 @@ class ConnectionDirector:
 
     Connections are always specified from left to right. If not, they're swapped so they are.
     """
-    def __init__(self, node_count, wavelength_count):
+
+    WavelengthMode_Between_Any = "between_any"
+    WavelengthMode_First_and_Last = "first_and_last"
+    WavelengthMode_Wavelength_Conversion = "wavelength_conversion"
+
+    def __init__(self, node_count, wavelength_count, wavelength_mode):
         assert node_count >= 2, "Node count must be greater than or equal to 2."
         assert wavelength_count >= 1, "Must have at least one wavelength."
+        assert wavelength_mode in [self.WavelengthMode_Between_Any, self.WavelengthMode_First_and_Last, self.WavelengthMode_Wavelength_Conversion], "Invalid wavelength mode."
 
         self.node_count = node_count
         self.wavelength_count = wavelength_count
+        self.wavelength_mode = wavelength_mode
 
         # Generate trunks between nodes.
         # This will be a list of lists, since we need to account for the different wavelengths.
@@ -64,30 +74,65 @@ class ConnectionDirector:
             for w in range(0, wavelength_count):
                 trunks.append( Trunk(start=t, end=(t+1), wavelength=w) )
 
+    def generate_connection(self):
+        if self.wavelength_mode is self.WavelengthMode_Between_Any:
+            # Generate a random start and end node.
+            start_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
+            # Ensure our end node is different
+            end_node = start_node
+            while end_node is start_node:
+                end_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
+
+            connection = Connection(start_node=start_node, end_node=end_node)
+            return connection
+
+        elif self.wavelength_mode is self.WavelengthMode_First_and_Last:
+            None
+        elif self.wavelength_mode is self.WavelengthMode_Wavelength_Conversion:
+            None
+
+        return None
+
+    def route(self):
+        None
+
 class SimulationEvent():
     # The two different event types.
     ConnectionRequested = 1
     ConnectionFinished = 2
 
-    def __init__(self, rate, last_event):
+    def __init__(self, type, rate, simulation, last_event=None):
+        self.type = type
         self.time = SimulationEvent.get_next_event_time(rate)
         if last_event is not None:
             self.absolute_time = last_event.absolute_time + self.time
         else:
             self.absolute_time = self.time
 
+        # Add ourselves to the simulation
+        self.simulation = simulation
+        simulation.add_event(self)
+
+        self.connection = None
+
+    def set_connection(self, connection):
+        self.connection = connection
+
     @classmethod
     def get_next_event_time(cls, rate):
         return numpy.random.exponential(1.0 / rate)
 
 
+
 class FiberOpticSimulation():
+
     """Runs a single simulation. This was chosen to be a class to allow multiple simulations results to be averaged."""
-    def __init__(self, node_count=10, lambda_parameter=5.0, mu_parameter=1.0, wavelength_count=10, transient_count=100, target_count=800):
+    def __init__(self, node_count=10, lambda_parameter=5.0, mu_parameter=1.0, wavelength_count=10, wavelength_mode=ConnectionDirector.WavelengthMode_Between_Any, transient_count=100, target_count=800):
         self.node_count = node_count
         self.lambda_parameter = lambda_parameter
         self.mu_parameter = mu_parameter
         self.wavelength_count = wavelength_count
+        self.wavelength_mode = wavelength_mode
         self.transient_count = transient_count
         self.target_count = target_count
 
@@ -106,10 +151,35 @@ class FiberOpticSimulation():
     """Called by the thread to actually run the simulation."""
     def __call__(self, *args, **kwargs):
         # Make the initial event
-        while self.target_count_done() is False:
-            None
+        initial_event = SimulationEvent(
+            type=SimulationEvent.ConnectionRequested,
+            rate=self.lambda_parameter,
+            simulation=self,
+            last_event=None)
 
-        print("Did the simulation.")
+        while self.target_count_done() is False:
+            assert self.event_queue.not_empty == True, "Event queue is empty somehow."
+
+            # Get the next event
+            next_event = self.event_queue.get()[1]
+
+            if next_event.type is SimulationEvent.ConnectionRequested:
+                # Generate a connection
+                new_connection = self.connectionDirector.generate_connection()
+
+                if self.connectionDirector.route(new_connection):
+                    # Successfully found a route.
+                    # Create a "finished" event.
+                    None
+                else:
+                    # Couldn't route the connection. It must be dropped.
+                    None
+
+            elif next_event.type is SimulationEvent.ConnectionFinished:
+                None
+
+
+        print("Completed a simulation.")
 
     """Will \"join\" the thread to wait for it to finish."""
     def wait_for_simulation(self):
@@ -126,4 +196,5 @@ class FiberOpticSimulation():
     def add_event(self, event):
         assert event not in self.event_queue, "Trying to enqueue an event twice."
         self.event_queue.put( (event.time, event) )
+        self.event_index += 1
 
