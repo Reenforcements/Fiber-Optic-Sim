@@ -1,5 +1,7 @@
 from FiberOpticSimulation import *
 import argparse
+import multiprocessing
+from multiprocessing import queues
 
 # Sample command:
 # python main.py --node_count 10 --lambda 5 --mu 1 --wavelength_count 10 --wavelength_mode between_any --transient_count 100 --target_count 800
@@ -25,6 +27,7 @@ args = parser.parse_args()
 
 print(args)
 print("Running {} simulations on separate threads...".format(args.simulation_count))
+all_statistics = multiprocessing.queues.SimpleQueue()
 sims = []
 for i in range(0, args.simulation_count):
     sim = FiberOpticSimulation(
@@ -36,10 +39,14 @@ for i in range(0, args.simulation_count):
         transient_count=args.transient_count,
         target_count=args.target_count)
     sims.append(sim)
+    sim.all_statistics = all_statistics
     sim.start_simulation()
 
-while len(sims) > 0:
-    sims[0].wait_for_simulation()
-    sims.remove(sims[0])
+unfinished_sims = list(sims)
+while len(unfinished_sims) > 0:
+    unfinished_sims[0].wait_for_simulation()
+    unfinished_sims.remove(unfinished_sims[0])
 
 print("All simulations complete!")
+while all_statistics.empty() == False:
+    print(all_statistics.get())

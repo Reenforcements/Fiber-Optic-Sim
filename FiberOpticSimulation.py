@@ -1,4 +1,5 @@
-import threading
+from multiprocessing import Process
+import os
 from Queue import PriorityQueue
 import numpy
 
@@ -194,17 +195,23 @@ class FiberOpticSimulation():
         self.connectionDirector = ConnectionDirector(node_count=node_count, wavelength_count=wavelength_count, wavelength_mode=wavelength_mode)
         self.event_queue = PriorityQueue()
 
-        self.thread = None
-        self.event_index = 0
-        self.is_debugging = True
+        self.process = None
+        self.statistics = {}
+        self.event_count = 0
+        self.block_count = 0
+        self.is_debugging = False
 
-    """Start the simulation from the main thread."""
+    """Start the simulation from the main process on a child process."""
     def start_simulation(self):
-        self.thread = threading.Thread(target=self)
-        self.thread.start()
+        self.process = Process(target=self)
+        self.process.start()
 
-    """Called by the thread to actually run the simulation."""
+    """Called by the process to actually run the simulation."""
     def __call__(self, *args, **kwargs):
+        # Change the random seed or all simulations will output the same result!
+        numpy.random.seed()
+
+        print("Started simulation with PID: {}".format(os.getpid()))
         # Make the initial event
         initial_event = SimulationEvent(
             type=SimulationEvent.ConnectionRequested,
@@ -251,6 +258,8 @@ class FiberOpticSimulation():
                 else:
                     # Couldn't route the connection. It must be dropped.
                     new_connection.blocked = True
+                    if self.transient_done():
+                        self.block_count += 1
                     self.debug_print("({}) Blocked connection.".format(next_event.absolute_time))
 
             elif next_event.type == SimulationEvent.ConnectionFinished:
@@ -258,27 +267,36 @@ class FiberOpticSimulation():
                 self.debug_print("({}) Releasing connection route: {}".format(finished_event.absolute_time, next_event.connection))
                 next_event.connection.releaseRoute()
 
+        self.generate_statistics()
 
+        print("Completed simulation with PID: {}".format(os.getpid()))
 
-        print("Completed a simulation.")
-
-    """Will \"join\" the thread to wait for it to finish."""
-    def wait_for_simulation(self):
-        while self.thread.is_alive():
-            self.thread.join()
+    """Will \"join\" the process to wait for it to finish."""
+    def wait_for_simulation(self, timeout=None):
+        while self.process.is_alive():
+            self.process.join(timeout)
         for s in self.debug_print_statements:
             print(s)
         return
 
     def transient_done(self):
-        return self.event_index > self.transient_count
+        return self.event_count > self.transient_count
 
     def target_count_done(self):
-        return (self.event_index - self.transient_count) > self.target_count
+        return (self.event_count - self.transient_count) > self.target_count
+
+    def actual_target_count(self):
+        return self.event_count - self.transient_count
 
     def add_event(self, event):
         self.event_queue.put( (event.absolute_time, event) )
-        self.event_index += 1
+        self.event_count += 1
+
+    def generate_statistics(self):
+        self.statistics["number_of_events"] = self.actual_target_count()
+        self.statistics["block_count"] = self.block_count
+        self.statistics["Pb"] = float(self.block_count) / float(self.actual_target_count())
+        self.all_statistics.put(self.statistics)
 
     debug_print_statements = []
     def debug_print(self, text):
