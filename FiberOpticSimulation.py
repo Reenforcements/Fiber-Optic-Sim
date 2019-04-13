@@ -1,7 +1,7 @@
 from multiprocessing import Process
 import os
 from Queue import PriorityQueue
-import numpy
+from numpy import random
 
 class Trunk:
     def __init__(self, start, end, wavelength):
@@ -90,11 +90,11 @@ class ConnectionDirector:
     def generate_connection(self):
         if self.wavelength_mode == self.WavelengthMode_Between_Any or self.wavelength_mode == self.WavelengthMode_Wavelength_Conversion:
             # Generate a random start and end node.
-            start_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
+            start_node = random.random_integers(low=0, high=(self.node_count-1))
             # Ensure our end node is different
             end_node = start_node
             while end_node == start_node:
-                end_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
+                end_node = random.random_integers(low=0, high=(self.node_count-1))
 
             connection = Connection(start_node=start_node, end_node=end_node)
             return connection
@@ -175,7 +175,7 @@ class SimulationEvent():
 
     @classmethod
     def get_next_event_time(cls, rate):
-        return numpy.random.exponential(1.0 / rate)
+        return random.exponential(1.0 / rate)
 
 
 
@@ -209,7 +209,7 @@ class FiberOpticSimulation():
     """Called by the process to actually run the simulation."""
     def __call__(self, *args, **kwargs):
         # Change the random seed or all simulations will output the same result!
-        numpy.random.seed()
+        random.seed()
 
         print("Started simulation with PID: {}".format(os.getpid()))
         # Make the initial event
