@@ -21,18 +21,18 @@ class Connection:
     A single connection spans one or more trunks.
     If wavelength conversion is enabled, a connection's wavelength can vary across it.
     """
-    def __init__(self, start_node, end_node, trunks):
+    def __init__(self, start_node, end_node, trunks=None):
         assert start_node != end_node, "Start and end nodes cannot be identical."
         self.start_node = min(start_node, end_node)
         self.end_node = max(start_node, end_node)
-        self.trunks = None
+        self.trunks = trunks
 
         self.blocked = None
 
     def has_route(self):
         return self.trunks is not None
 
-    def aquireRoute(self, trunks):
+    def acquireRoute(self, trunks):
         self.trunks = trunks
         for trunk in trunks:
             assert trunk.occupied == False, "Trying to occupy an occupied trunk: {}".format(trunk)
@@ -43,7 +43,17 @@ class Connection:
         for trunk in self.trunks:
             assert trunk.occupied == True, "Trying to release an unoccupied trunk: {}".format(trunk)
             trunk.occupied = False
+        self.trunks = []
 
+    def __str__(self):
+        if self.has_route() is False:
+            return "No trunks"
+
+        s = "["
+        for t in self.trunks:
+            s += " ({}){}->{}, ".format(t.wavelength, t.start, t.end)
+
+        return s + "]"
 
 class ConnectionDirector:
     """
@@ -82,14 +92,18 @@ class ConnectionDirector:
             start_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
             # Ensure our end node is different
             end_node = start_node
-            while end_node is start_node:
+            while end_node == start_node:
                 end_node = numpy.random.random_integers(low=0, high=(self.node_count-1))
 
             connection = Connection(start_node=start_node, end_node=end_node)
             return connection
 
         elif self.wavelength_mode is self.WavelengthMode_First_and_Last:
-            None
+            start_node = 0
+            end_node = self.node_count-1
+            connection = Connection(start_node=start_node, end_node=end_node)
+            return connection
+
         elif self.wavelength_mode is self.WavelengthMode_Wavelength_Conversion:
             None
 
@@ -99,7 +113,7 @@ class ConnectionDirector:
         if self.wavelength_mode is self.WavelengthMode_Between_Any:
             trunks = None
             # Attempt all wavelengths
-            for w in self.wavelength_count:
+            for w in range(0, self.wavelength_count):
                 # Try a path using wavelength w.
                 trunks = []
                 for i in range(connection.start_node, connection.end_node):
@@ -113,11 +127,11 @@ class ConnectionDirector:
 
                 if trunks is not None:
                     # We have a valid path through
-                    break
+                    # Give the connection the full route
+                    connection.acquireRoute(trunks)
+                    return True
 
-        # Give the connection the full route
-        connection.aquireRoute(trunks)
-
+            return False
         elif self.wavelength_mode is self.WavelengthMode_First_and_Last:
             None
         elif self.wavelength_mode is self.WavelengthMode_Wavelength_Conversion:
@@ -164,11 +178,12 @@ class FiberOpticSimulation():
         self.target_count = target_count
 
         # The connection director will validates, blocks, and makes connections.
-        self.connectionDirector = ConnectionDirector(node_count=node_count, wavelength_count=wavelength_count)
+        self.connectionDirector = ConnectionDirector(node_count=node_count, wavelength_count=wavelength_count, wavelength_mode=wavelength_mode)
         self.event_queue = PriorityQueue()
 
         self.thread = None
         self.event_index = 0
+        self.is_debugging = True
 
     """Start the simulation from the main thread."""
     def start_simulation(self):
@@ -185,10 +200,13 @@ class FiberOpticSimulation():
             last_event=None)
 
         while self.target_count_done() is False:
-            assert self.event_queue.not_empty == True, "Event queue is empty somehow."
+            assert self.event_queue.empty() == False, "Event queue is empty somehow."
 
             # Get the next event
             next_event = self.event_queue.get()[1]
+            self.debug_print("({}) Got next event of type {}.".format(
+                next_event.absolute_time,
+                "ConnectionRequested" if next_event.type == SimulationEvent.ConnectionRequested else "ConnectionFinished"))
 
             if next_event.type is SimulationEvent.ConnectionRequested:
                 # Generate the next connection requested event.
@@ -198,24 +216,35 @@ class FiberOpticSimulation():
                     simulation=self,
                     last_event=next_event)
 
+                self.debug_print("({}) Generated next ConnectionRequest for {}.".format(next_event.absolute_time, next_connection_requested_event.absolute_time))
+
                 # Generate a connection
                 new_connection = self.connectionDirector.generate_connection()
+
+                self.debug_print("({}) Attempting to route a connection from {} to {}.".format(next_event.absolute_time, new_connection.start_node, new_connection.end_node))
 
                 if self.connectionDirector.route(new_connection):
                     # Successfully found a route.
                     new_connection.blocked = False
+                    self.debug_print("({}) Successfully routed the connection: {}".format(next_event.absolute_time, new_connection))
                     # Create a "finished" event for the future.
                     finished_event = SimulationEvent(
                         type=SimulationEvent.ConnectionFinished,
                         rate=self.mu_parameter,
                         simulation=self,
                         last_event=next_event)
+                    finished_event.connection = new_connection
+                    self.debug_print("({}) Generated the ConnectionFinished event for {}.".format(next_event.absolute_time, finished_event.absolute_time))
                 else:
                     # Couldn't route the connection. It must be dropped.
                     new_connection.blocked = True
+                    self.debug_print("({}) Blocked connection.".format(next_event.absolute_time))
 
             elif next_event.type is SimulationEvent.ConnectionFinished:
-                None
+                assert next_event.connection is not None, "Connection for ConnectionFinished event is None."
+                self.debug_print("({}) Releasing connection route: {}".format(finished_event.absolute_time, next_event.connection))
+                next_event.connection.releaseRoute()
+
 
 
         print("Completed a simulation.")
@@ -224,6 +253,8 @@ class FiberOpticSimulation():
     def wait_for_simulation(self):
         while self.thread.is_alive():
             self.thread.join()
+        for s in self.debug_print_statements:
+            print(s)
         return
 
     def transient_done(self):
@@ -233,7 +264,11 @@ class FiberOpticSimulation():
         return (self.event_index - self.transient_count) > self.target_count
 
     def add_event(self, event):
-        assert event not in self.event_queue, "Trying to enqueue an event twice."
-        self.event_queue.put( (event.time, event) )
+        self.event_queue.put( (event.absolute_time, event) )
         self.event_index += 1
+
+    debug_print_statements = []
+    def debug_print(self, text):
+        if self.is_debugging:
+            self.debug_print_statements.append(text)
 
