@@ -5,7 +5,7 @@ from multiprocessing import queues
 from numpy import mean
 
 # Sample command:
-# python main.py --node_count 10 --lambda 5 --mu 1 --wavelength_count 10 --wavelength_mode between_any --transient_count 100 --target_count 800
+# python main.py --simulation_count 16 --node_count 10 --lambda 5 --mu 1 --wavelength_count 10 --wavelength_mode between_any --transient_count 5000 --target_count 50000 --step_wavelength
 
 parser = argparse.ArgumentParser(description="Run an optical network simulation.")
 
@@ -62,10 +62,10 @@ if args.step_wavelength is False:
     print("Average Pb for W={} is {}.".format(args.wavelength_count, Pb_avg))
 else:
     Pb_averages = []
-    for i in range(1, args.wavelength_count):
+    for i in range(2, args.wavelength_count+1):
         Pb_avg = run_batch(args, i)
         Pb_averages.append(Pb_avg)
         print("Average Pb for W={} is {}.".format(i, Pb_avg))
 
     for w, pb in enumerate(Pb_averages):
-        print("Average Pb for W={} is {}.".format(w+1, pb))
+        print("Average Pb for W={} is {}.".format(w+2, pb))
