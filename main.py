@@ -20,8 +20,8 @@ between_any means any node can be a start node and any node can be an end node.
 first_and_last means connections can only originate from node 1 and end at node 10. 
 wavelength_conversion allows different wavelengths to be used between nodes.""")
 
-parser.add_argument("--transient_count", type=int, action='store', required=True, help="How many connections to ignore at the beginning of the simulation.")
-parser.add_argument("--target_count", type=int, action='store', required=True, help="How many connections after the transient amount to collect statistics on.")
+parser.add_argument("--transient_count", type=int, action='store', required=True, help="How many events to ignore at the beginning of the simulation.")
+parser.add_argument("--target_count", type=int, action='store', required=True, help="How many events after the transient amount to collect statistics on.")
 
 parser.add_argument("--step_wavelength", action='store_true', required=False, default=False, help="Run multiple batches and increase W from 1 to wavelength_count.")
 
@@ -65,7 +65,7 @@ else:
     for i in range(2, args.wavelength_count+1):
         Pb_avg = run_batch(args, i)
         Pb_averages.append(Pb_avg)
-        print("Average Pb for W={} is {}.".format(i, Pb_avg))
+        print("Total average Pb for W={} is {}.".format(i, Pb_avg))
 
     for w, pb in enumerate(Pb_averages):
-        print("Average Pb for W={} is {}.".format(w+2, pb))
+        print("Total average Pb for W={} is {}.".format(w+2, pb))

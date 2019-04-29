@@ -2,6 +2,7 @@ from multiprocessing import Process
 import os
 from Queue import PriorityQueue
 from numpy import random
+from datetime import datetime
 
 class Trunk:
     def __init__(self, start, end, wavelength):
@@ -35,7 +36,7 @@ class Connection:
 
     def acquireRoute(self, trunks):
         self.trunks = trunks
-        for trunk in trunks:
+        for trunk in self.trunks:
             assert trunk.occupied == False, "Trying to occupy an occupied trunk: {}".format(trunk)
             trunk.occupied = True
 
@@ -84,8 +85,11 @@ class ConnectionDirector:
             trunks = []
             self.inter_node_trunks.append(trunks)
             # Make trunks between the two nodes for all the wavelengths.
-            for w in range(0, wavelength_count):
+            for w in range(0, self.wavelength_count):
                 trunks.append( Trunk(start=t, end=(t+1), wavelength=w) )
+
+        for wavelengths in self.inter_node_trunks:
+            assert len(wavelengths) == self.wavelength_count, "Allocated incorrect number of wavelengths."
 
     def generate_connection(self):
         if self.wavelength_mode == self.WavelengthMode_Between_Any or self.wavelength_mode == self.WavelengthMode_Wavelength_Conversion:
@@ -136,12 +140,13 @@ class ConnectionDirector:
             trunks = []
             for i in range(connection.start_node, connection.end_node):
                 # Try all available wavelength trunks between nodes i and i+1
+                last_wavelength = self.wavelength_count-1
                 for w in range(0, self.wavelength_count):
                     t = self.inter_node_trunks[i][w]
                     if t.occupied == False:
                         trunks.append(t)
                         break
-                    elif w == (self.wavelength_count-1):
+                    elif w == last_wavelength:
                         # There's no available wavelengths between i and i+1
                         return False
 
@@ -192,12 +197,12 @@ class FiberOpticSimulation():
         self.target_count = target_count
 
         # The connection director will validates, blocks, and makes connections.
-        self.connectionDirector = ConnectionDirector(node_count=node_count, wavelength_count=wavelength_count, wavelength_mode=wavelength_mode)
+        self.connectionDirector = ConnectionDirector(node_count=self.node_count, wavelength_count=self.wavelength_count, wavelength_mode=self.wavelength_mode)
         self.event_queue = PriorityQueue()
 
         self.process = None
         self.statistics = {}
-        self.event_count = 0
+        self.arrival_count = 0
         self.block_count = 0
         self.is_debugging = False
 
@@ -264,7 +269,7 @@ class FiberOpticSimulation():
 
             elif next_event.type == SimulationEvent.ConnectionFinished:
                 assert next_event.connection is not None, "Connection for ConnectionFinished event is None."
-                self.debug_print("({}) Releasing connection route: {}".format(finished_event.absolute_time, next_event.connection))
+                self.debug_print("({}) Releasing connection route: {}".format(next_event.absolute_time, next_event.connection))
                 next_event.connection.releaseRoute()
 
         self.generate_statistics()
@@ -280,17 +285,19 @@ class FiberOpticSimulation():
         return
 
     def transient_done(self):
-        return self.event_count > self.transient_count
+        return self.arrival_count > self.transient_count
 
     def target_count_done(self):
-        return (self.event_count - self.transient_count) > self.target_count
+        return (self.arrival_count - self.transient_count) > self.target_count
 
     def actual_target_count(self):
-        return self.event_count - self.transient_count
+        return self.arrival_count - self.transient_count
 
     def add_event(self, event):
+        if event.type == SimulationEvent.ConnectionRequested:
+            self.arrival_count += 1
+
         self.event_queue.put( (event.absolute_time, event) )
-        self.event_count += 1
 
     def generate_statistics(self):
         self.statistics["number_of_events"] = self.actual_target_count()
@@ -299,7 +306,16 @@ class FiberOpticSimulation():
         self.all_statistics.put(self.statistics)
 
     debug_print_statements = []
+    debug_log_file = None
     def debug_print(self, text):
         if self.is_debugging:
-            self.debug_print_statements.append(text)
+            if self.debug_log_file is None:
+                self.debug_log_file = open("fiber-optic.log", "w")
+                if self.debug_log_file is not None:
+                    self.debug_log_file.write(str(datetime.now()))
+                    self.debug_log_file.write("\n")
+
+            if self.debug_log_file is not None:
+                self.debug_log_file.write(text)
+                self.debug_log_file.write("\n")
 
