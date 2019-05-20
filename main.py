@@ -9,13 +9,13 @@ from numpy import mean
 
 parser = argparse.ArgumentParser(description="Run an optical network simulation.")
 
-parser.add_argument("--simulation_count", type=int, default=8, help="The number of simulations to run and average.")
+parser.add_argument("--simulation_count", type=int, default=8, help="The number of parallel simulations to run and average.")
 parser.add_argument("--node_count", type=int, action='store', required=True, help="The number of nodes on the bus network.")
 parser.add_argument("--lambda", type=float, action='store', dest="lambda_parameter", required=True, help="The average arrival rate.")
 parser.add_argument("--mu", type=float, action='store', dest="mu_parameter", required=True, help="The average duration of each connection.")
 parser.add_argument("--wavelength_count", type=int, action='store', required=True, help="The number of different wavelengths available to the bus.")
 parser.add_argument("--wavelength_mode", action='store', required=True, choices=[ConnectionDirector.WavelengthMode_Between_Any, ConnectionDirector.WavelengthMode_First_and_Last, ConnectionDirector.WavelengthMode_Wavelength_Conversion],
-default=[ConnectionDirector.WavelengthMode_Between_Any], help="""The simulation mode. 
+default=[ConnectionDirector.WavelengthMode_Between_Any], help="""One of the following simulation modes: 
 between_any means any node can be a start node and any node can be an end node. 
 first_and_last means connections can only originate from node 1 and end at node 10. 
 wavelength_conversion allows different wavelengths to be used between nodes.""")
